@@ -634,6 +634,29 @@ describe("MCP OAuth", () => {
       expect(Exit.isFailure(exit) && String(Cause.squash(exit.cause))).toContain("Missing authorization code")
     })
 
+    // Integration.oauth.complete marks the attempt completing before invoking the callback, so a throw
+    // escapes as a defect and the attempt never settles.
+    test("fails a malformed pasted URL instead of throwing", async () => {
+      const { server, tokenRequests } = tokenServer()
+
+      const exits = await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const { authorization } = yield* startNoBrowser(server, { client_id: "client" })
+            return yield* Effect.forEach(["http://", "https://exa mple.com"], (pasted) =>
+              Effect.exit(Effect.suspend(() => authorization.callback(pasted))),
+            )
+          }),
+        ),
+      ).finally(() => server.stop(true))
+
+      for (const exit of exits) {
+        expect(Exit.isFailure(exit)).toBe(true)
+        expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(false)
+      }
+      expect(tokenRequests).toHaveLength(0)
+    })
+
     test("reports a rejected token exchange for an expired or reused code", async () => {
       const { server } = tokenServer(() =>
         Response.json({ error: "invalid_grant", error_description: "code expired" }, { status: 400 }),

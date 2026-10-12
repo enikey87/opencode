@@ -564,7 +564,8 @@ const callbackInput = (pasted: string, state: string) => {
   const trimmed = pasted.trim()
   if (!trimmed) return new Error("Missing authorization code")
   if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) return { code: trimmed, iss: undefined }
-  const url = new URL(trimmed)
+  const url = URL.parse(trimmed)
+  if (!url) return new Error("Invalid redirect URL")
   const error = url.searchParams.get("error_description") ?? url.searchParams.get("error")
   if (error) return new Error(error)
   if (url.searchParams.get("state") !== state) return new Error("OAuth state mismatch")
